@@ -1,0 +1,116 @@
+Pregunta1:
+
+SET SERVEROUTPUT ON;
+DECLARE
+   V_CATE_ID categorias.idcategoria%TYPE;
+   V_CATE_NAME categorias.nombrecategoria%TYPE;
+   V_DESC categorias.descripcion%TYPE;
+   v_num_cat int;
+  
+declare
+    v_idempleado int;
+    v_nomempleado varchar(100);
+    v_fechacontrato empleados.feccontrata%type;
+    v_tiempolaboral int;
+    v_periodo int;
+    v_importemensual numeric;
+    v_contador int :=1;
+    v_mes varchar(20);
+    v_anual numeric;
+    v_descuento numeric;
+    v_porcentajedesc numeric;
+    v_fecejecucion varchar(50);
+begin
+v_idempleado:='&v_idempleado';
+v_periodo:='&v_periodo';
+select nomempleado||apeempleado, feccontrata into v_nomempleado,v_fechacontrato from empleados where idempleado=v_idempleado;
+select extract(year from sysdate)-extract(year from feccontrata) into v_tiempolaboral from empleados where idempleado=v_idempleado;
+
+    dbms_output.put_line('---------------------------------------');
+    dbms_output.put_line('*****Reportes de Pedidos anuales*****');
+    dbms_output.put_line('---------------------------------------');
+    dbms_output.put_line('Empleado          -> '||v_idempleado||'- '||v_nomempleado);
+    dbms_output.put_line('Fecha contrato    -> '||v_fechacontrato);
+    dbms_output.put_line('Tiempo laboral    -> '||v_tiempolaboral||' Años');
+    dbms_output.put_line('  Mes            SUMA Importe Mensual');
+    dbms_output.put_line('========          =====================');
+    while v_contador<13
+    loop
+    select sum(pd.preciounidad*pd.cantidad*(1-pd.descuento)) into v_importemensual
+    from pedidosdeta pd inner join pedidoscabe pc on pd.idpedido=pc.idpedido
+    where pc.idempleado=v_idempleado and extract(month from pc.fechapedido)=v_contador and extract(year from pc.fechapedido)=v_periodo;
+    SELECT month_display into v_mes FROM WWV_FLOW_MONTHS_MONTH where month_value=v_contador;
+    dbms_output.put_line(v_contador||'-'||v_mes||'         S/.'||v_importemensual);
+    v_contador:=v_contador +1;
+    end loop;
+    dbms_output.put_line('====================================================');
+    select sum(pd.preciounidad*pd.cantidad*(1-pd.descuento)) into v_anual
+    from pedidosdeta pd inner join pedidoscabe pc on pd.idpedido=pc.idpedido where pc.idempleado=v_idempleado and extract(year from pc.fechapedido)=v_periodo;
+    select sum(pd.preciounidad*pd.cantidad)-sum(pd.preciounidad*pd.cantidad*(1-pd.descuento)) into v_descuento
+    from pedidosdeta pd inner join pedidoscabe pc on pd.idpedido=pc.idpedido where pc.idempleado=v_idempleado and extract(year from pc.fechapedido)=v_periodo;
+    select (sum(pd.preciounidad*pd.cantidad)/sum(pd.preciounidad*pd.cantidad*(1-pd.descuento)))*100-100 into v_porcentajedesc
+    from pedidosdeta pd inner join pedidoscabe pc on pd.idpedido=pc.idpedido where pc.idempleado=v_idempleado and extract(year from pc.fechapedido)=v_periodo;
+    dbms_output.put_line('<Pedido anual S/.'||v_anual||'>'||' <Total descuento S/.'||v_descuento||'>'||' <%Total descuento '||v_porcentajedesc||'% >');
+    select sysdate into v_fecejecucion from dual;
+    dbms_output.put_line('Fecha de ejecucion: '||v_fecejecucion);
+end;
+
+
+
+Pregunta2 :
+ 
+begin
+  
+    V_CATE_NAME := '&CATE_NAME';
+    V_DESC := '&DESC_CAT';
+    
+    --insert, update, delete (DML)
+    SELECT MAX(idcategoria) + 1
+    INTO V_CATE_ID
+    FROM categorias;
+    
+    select count(*) 
+    into v_num_cat
+    from categorias
+    where nombrecategoria = V_CATE_NAME;
+    
+    if v_num_cat < 1 then
+        INSERT INTO categorias VALUES(V_CATE_ID,V_CATE_NAME,V_DESC);
+        COMMIT;
+        DBMS_OUTPUT.PUT_LINE('SE REGISTRO CORRECTAMENTE');
+    else
+        DBMS_OUTPUT.PUT_LINE('la categoria ya existe');
+    end if;
+    
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('OCURRIÓ UN ERROR!!');
+end;
+
+
+Pregunta3:
+
+create table productos_bk
+as
+select * from uexpo.productos;
+end;
+
+declare
+cursor producto_cursor is 
+    select idproducto, unidadesnexistencia, nuevasunidades,
+        case  when unidadesnexistencia < 10 then 100
+            when unidadesnexistencia >= 10 and unidadesnexistencia <= 80 then 30
+            else 5
+        end as sumatoria
+    from productos_bk;
+begin
+    for prod_record in producto_cursor loop
+        update productos_bk
+        set nuevasunidades = unidadesnexistencia + sumatoria
+        where idproveedor in (1,2,4,5,7,8,10,12,18,21,22,26,28,29);
+        
+        DBMS_OUTPUT.PUT_line('Producto '||productos_bk.idproveedor||' | '||'Antes: '||productos_bk.unidadesnexistencia||' '||'Después: '||productos_bk.unidadesnexistencia + sumatoria);
+    end loop;
+commit;
+end;
